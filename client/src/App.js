@@ -8,7 +8,9 @@ import Breadcrumbs from "./components/Breadcrumbs";
 import SearchBar from "./components/SearchBar";
 import { HardDrive, AlertCircle, Menu, X, LogOut } from "lucide-react";
 
-const API = axios.create({ baseURL: "" });
+const API = axios.create({ 
+  baseURL: "http://localhost:3001" 
+});
 
 export default function App() {
   const [isAuth, setIsAuth] = useState(false);
