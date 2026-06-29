@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Folder, File, ArrowUp, ArrowDown } from "lucide-react";
+import { Folder, File, ArrowUp, ArrowDown, Eye } from "lucide-react";
 import FileIcon from "./FileIcon";
+import FileViewer from "./FileViewer";
 
 function formatSize(bytes) {
   if (bytes === null || bytes === undefined) return "—";
@@ -54,6 +55,7 @@ export default function FileList({
   const [sortKey, setSortKey] = useState("name");
   const [sortDir, setSortDir] = useState("asc");
   const [hoveredRow, setHovered] = useState(null);
+  const [viewingFile, setViewingFile] = useState(null);
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -83,6 +85,14 @@ export default function FileList({
     );
   };
 
+  const handleRowClick = (entry) => {
+    if (entry.isFolder) {
+      onFolderClick(entry.path);
+    } else {
+      setViewingFile(entry);
+    }
+  };
+
   if (entries.length === 0 && !isSearching) {
     return (
       <div style={styles.empty}>
@@ -103,129 +113,162 @@ export default function FileList({
     );
   }
 
-  // ── Mobile card view ───────────────────────────────────────
-  if (isMobile) {
-    return (
-      <div style={styles.container} className="fade-in">
-        {isSearching && (
-          <div style={styles.searchBanner}>
-            🔍 Results for "<strong>{searchQuery}</strong>"
-          </div>
-        )}
-        <div style={styles.cardGrid}>
-          {sorted.map((entry) => (
-            <div
-              key={entry.path}
-              style={{
-                ...styles.card,
-                background: hoveredRow === entry.path ? "#1a2744" : "#13213a",
-                cursor: entry.isFolder ? "pointer" : "default",
-              }}
-              onClick={() => entry.isFolder && onFolderClick(entry.path)}
-              onTouchStart={() => setHovered(entry.path)}
-              onTouchEnd={() => setHovered(null)}
-            >
-              <div style={styles.cardIcon}>
-                <FileIcon name={entry.name} isFolder={entry.isFolder} />
-              </div>
-              <div style={styles.cardInfo}>
-                <div
-                  style={{
-                    ...styles.cardName,
-                    color: entry.isFolder ? "#60a5fa" : "#e2e8f0",
-                  }}
-                >
-                  {highlight(entry.name, searchQuery)}
-                </div>
-                <div style={styles.cardMeta}>
-                  {!entry.isFolder && <span>{formatSize(entry.size)}</span>}
-                  <span>{formatDate(entry.modified)}</span>
-                </div>
-                {isSearching && (
-                  <div style={styles.cardPath} title={entry.path}>
-                    {entry.path}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Desktop table view ─────────────────────────────────────
   return (
-    <div style={styles.container} className="fade-in">
-      {isSearching && (
-        <div style={styles.searchBanner}>
-          🔍 Search results for "<strong>{searchQuery}</strong>" in{" "}
-          {currentPath}
-        </div>
+    <>
+      {/* ── File Viewer Modal ──────────────────────────────── */}
+      {viewingFile && (
+        <FileViewer
+          file={viewingFile}
+          onClose={() => setViewingFile(null)}
+          isMobile={isMobile}
+        />
       )}
 
-      <table style={styles.table}>
-        <thead>
-          <tr style={styles.thead}>
-            {[
-              { key: "name", label: "Name", width: "50%" },
-              { key: "size", label: "Size", width: "15%" },
-              { key: "modified", label: "Date Modified", width: "25%" },
-            ].map(({ key, label, width }) => (
-              <th
-                key={key}
-                style={{ ...styles.th, width }}
-                onClick={() => handleSort(key)}
+      {/* ── Mobile card view ───────────────────────────────── */}
+      {isMobile ? (
+        <div style={styles.container} className="fade-in">
+          {isSearching && (
+            <div style={styles.searchBanner}>
+              🔍 Results for "<strong>{searchQuery}</strong>"
+            </div>
+          )}
+          <div style={styles.cardGrid}>
+            {sorted.map((entry) => (
+              <div
+                key={entry.path}
+                style={{
+                  ...styles.card,
+                  background: hoveredRow === entry.path ? "#1a2744" : "#13213a",
+                  cursor: "pointer",
+                }}
+                onClick={() => handleRowClick(entry)}
+                onTouchStart={() => setHovered(entry.path)}
+                onTouchEnd={() => setHovered(null)}
               >
-                {label}
-                <SortIcon k={key} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((entry) => (
-            <tr
-              key={entry.path}
-              style={{
-                ...styles.row,
-                background:
-                  hoveredRow === entry.path ? "#1a2744" : "transparent",
-                cursor: entry.isFolder ? "pointer" : "default",
-              }}
-              onMouseEnter={() => setHovered(entry.path)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={() => entry.isFolder && onFolderClick(entry.path)}
-            >
-              <td style={styles.td}>
-                <div style={styles.nameCell}>
+                <div style={styles.cardIcon}>
                   <FileIcon name={entry.name} isFolder={entry.isFolder} />
-                  <span
+                </div>
+                <div style={styles.cardInfo}>
+                  <div
                     style={{
-                      ...styles.fileName,
+                      ...styles.cardName,
                       color: entry.isFolder ? "#60a5fa" : "#e2e8f0",
                     }}
                   >
                     {highlight(entry.name, searchQuery)}
-                  </span>
+                  </div>
+                  <div style={styles.cardMeta}>
+                    {!entry.isFolder && <span>{formatSize(entry.size)}</span>}
+                    <span>{formatDate(entry.modified)}</span>
+                  </div>
                   {isSearching && (
-                    <span style={styles.pathHint} title={entry.path}>
-                      {entry.path.replace(entry.name, "").slice(0, -1)}
-                    </span>
+                    <div style={styles.cardPath} title={entry.path}>
+                      {entry.path}
+                    </div>
                   )}
                 </div>
-              </td>
-              <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
-                {formatSize(entry.size)}
-              </td>
-              <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
-                {formatDate(entry.modified)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                {!entry.isFolder && (
+                  <Eye size={16} color="#475569" style={{ flexShrink: 0 }} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* ── Desktop table view ──────────────────────────────── */
+        <div style={styles.container} className="fade-in">
+          {isSearching && (
+            <div style={styles.searchBanner}>
+              🔍 Search results for "<strong>{searchQuery}</strong>" in{" "}
+              {currentPath}
+            </div>
+          )}
+
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thead}>
+                {[
+                  { key: "name", label: "Name", width: "50%" },
+                  { key: "size", label: "Size", width: "12%" },
+                  { key: "modified", label: "Date Modified", width: "22%" },
+                  { key: "action", label: "", width: "8%" },
+                ].map(({ key, label, width }) => (
+                  <th
+                    key={key}
+                    style={{
+                      ...styles.th,
+                      width,
+                      cursor: key !== "action" ? "pointer" : "default",
+                    }}
+                    onClick={
+                      key !== "action" ? () => handleSort(key) : undefined
+                    }
+                  >
+                    {label}
+                    {key !== "action" && <SortIcon k={key} />}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((entry) => (
+                <tr
+                  key={entry.path}
+                  style={{
+                    ...styles.row,
+                    background:
+                      hoveredRow === entry.path ? "#1a2744" : "transparent",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={() => setHovered(entry.path)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => handleRowClick(entry)}
+                >
+                  <td style={styles.td}>
+                    <div style={styles.nameCell}>
+                      <FileIcon name={entry.name} isFolder={entry.isFolder} />
+                      <span
+                        style={{
+                          ...styles.fileName,
+                          color: entry.isFolder ? "#60a5fa" : "#e2e8f0",
+                        }}
+                      >
+                        {highlight(entry.name, searchQuery)}
+                      </span>
+                      {isSearching && (
+                        <span style={styles.pathHint} title={entry.path}>
+                          {entry.path.replace(entry.name, "").slice(0, -1)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
+                    {formatSize(entry.size)}
+                  </td>
+                  <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
+                    {formatDate(entry.modified)}
+                  </td>
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    {!entry.isFolder && (
+                      <button
+                        style={styles.viewBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingFile(entry);
+                        }}
+                        title="Preview file"
+                      >
+                        <Eye size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -247,7 +290,6 @@ const styles = {
     fontSize: 13,
     borderBottom: "1px solid #1e3a5f",
   },
-  // Desktop table
   table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
   thead: { position: "sticky", top: 0, zIndex: 5 },
   th: {
@@ -260,7 +302,6 @@ const styles = {
     borderBottom: "1px solid #1e293b",
     letterSpacing: "0.5px",
     textTransform: "uppercase",
-    cursor: "pointer",
     userSelect: "none",
     whiteSpace: "nowrap",
   },
@@ -296,6 +337,18 @@ const styles = {
     whiteSpace: "nowrap",
     maxWidth: 200,
     marginLeft: 4,
+  },
+  viewBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 6,
+    background: "#1e3a5f",
+    color: "#60a5fa",
+    borderRadius: 5,
+    border: "1px solid #1d4ed8",
+    cursor: "pointer",
+    transition: "background 0.15s",
   },
   // Mobile cards
   cardGrid: {

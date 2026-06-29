@@ -6,17 +6,15 @@
   "scripts": {
     "install-all": "npm install && cd client && npm install",
     "build-client": "cd client && npm run build",
-    "dev": "concurrently \"node server.js\" \"cd client && npm start\"",
+    "dev": "node start-dev.js",
     "start": "node server.js",
     "setup": "npm run install-all && npm run build-client"
   },
   "dependencies": {
-    "all": "^0.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.18.2",
-    "mime-types": "^2.1.35",
-    "react-scripts": "^0.0.0"
+    "mime-types": "^2.1.35"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
