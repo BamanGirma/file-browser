@@ -32,11 +32,10 @@ app.use(express.static(path.join(__dirname, "client", "build")));
  * Returns null if the path is invalid or outside allowed roots.
  */
 // single hardcoded user
-const user ={
-  username: process.env.USERNAME,
-  password: process.env.PASSWORD
-}
-
+const user = {
+  username: "admin",
+  password: "admin123",
+};
 
 function resolveSafePath(userPath) {
   if (!userPath || typeof userPath !== "string") return null;
