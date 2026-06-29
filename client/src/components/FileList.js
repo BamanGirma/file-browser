@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { Download, Folder, File, ArrowUp, ArrowDown } from "lucide-react";
+import { Folder, File, ArrowUp, ArrowDown } from "lucide-react";
 import FileIcon from "./FileIcon";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatSize(bytes) {
   if (bytes === null || bytes === undefined) return "—";
   if (bytes === 0) return "0 B";
@@ -44,13 +43,13 @@ function highlight(text, query) {
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function FileList({
   entries,
   currentPath,
   isSearching,
   searchQuery,
   onFolderClick,
+  isMobile,
 }) {
   const [sortKey, setSortKey] = useState("name");
   const [sortDir, setSortDir] = useState("asc");
@@ -65,9 +64,7 @@ export default function FileList({
   };
 
   const sorted = [...entries].sort((a, b) => {
-    // Folders always first
     if (!isSearching && a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
-
     let cmp = 0;
     if (sortKey === "name")
       cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -106,6 +103,58 @@ export default function FileList({
     );
   }
 
+  // ── Mobile card view ───────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={styles.container} className="fade-in">
+        {isSearching && (
+          <div style={styles.searchBanner}>
+            🔍 Results for "<strong>{searchQuery}</strong>"
+          </div>
+        )}
+        <div style={styles.cardGrid}>
+          {sorted.map((entry) => (
+            <div
+              key={entry.path}
+              style={{
+                ...styles.card,
+                background: hoveredRow === entry.path ? "#1a2744" : "#13213a",
+                cursor: entry.isFolder ? "pointer" : "default",
+              }}
+              onClick={() => entry.isFolder && onFolderClick(entry.path)}
+              onTouchStart={() => setHovered(entry.path)}
+              onTouchEnd={() => setHovered(null)}
+            >
+              <div style={styles.cardIcon}>
+                <FileIcon name={entry.name} isFolder={entry.isFolder} />
+              </div>
+              <div style={styles.cardInfo}>
+                <div
+                  style={{
+                    ...styles.cardName,
+                    color: entry.isFolder ? "#60a5fa" : "#e2e8f0",
+                  }}
+                >
+                  {highlight(entry.name, searchQuery)}
+                </div>
+                <div style={styles.cardMeta}>
+                  {!entry.isFolder && <span>{formatSize(entry.size)}</span>}
+                  <span>{formatDate(entry.modified)}</span>
+                </div>
+                {isSearching && (
+                  <div style={styles.cardPath} title={entry.path}>
+                    {entry.path}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Desktop table view ─────────────────────────────────────
   return (
     <div style={styles.container} className="fade-in">
       {isSearching && (
@@ -119,18 +168,17 @@ export default function FileList({
         <thead>
           <tr style={styles.thead}>
             {[
-              { key: "name", label: "Name", width: "45%" },
+              { key: "name", label: "Name", width: "50%" },
               { key: "size", label: "Size", width: "15%" },
               { key: "modified", label: "Date Modified", width: "25%" },
-              { key: "action", label: "", width: "15%" },
             ].map(({ key, label, width }) => (
               <th
                 key={key}
                 style={{ ...styles.th, width }}
-                onClick={key !== "action" ? () => handleSort(key) : undefined}
+                onClick={() => handleSort(key)}
               >
                 {label}
-                {key !== "action" && <SortIcon k={key} />}
+                <SortIcon k={key} />
               </th>
             ))}
           </tr>
@@ -149,7 +197,6 @@ export default function FileList({
               onMouseLeave={() => setHovered(null)}
               onClick={() => entry.isFolder && onFolderClick(entry.path)}
             >
-              {/* Name */}
               <td style={styles.td}>
                 <div style={styles.nameCell}>
                   <FileIcon name={entry.name} isFolder={entry.isFolder} />
@@ -168,18 +215,12 @@ export default function FileList({
                   )}
                 </div>
               </td>
-
-              {/* Size */}
               <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
                 {formatSize(entry.size)}
               </td>
-
-              {/* Modified */}
               <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
                 {formatDate(entry.modified)}
               </td>
-
-              {/* Download */}
             </tr>
           ))}
         </tbody>
@@ -206,11 +247,8 @@ const styles = {
     fontSize: 13,
     borderBottom: "1px solid #1e3a5f",
   },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontSize: 13,
-  },
+  // Desktop table
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
   thead: { position: "sticky", top: 0, zIndex: 5 },
   th: {
     padding: "10px 16px",
@@ -259,18 +297,49 @@ const styles = {
     maxWidth: 200,
     marginLeft: 4,
   },
-  downloadBtn: {
-    display: "inline-flex",
+  // Mobile cards
+  cardGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+  },
+  card: {
+    display: "flex",
     alignItems: "center",
-    gap: 5,
-    padding: "4px 10px",
-    background: "#1e3a5f",
-    color: "#60a5fa",
-    borderRadius: 5,
-    textDecoration: "none",
-    fontSize: 12,
+    gap: 12,
+    padding: "10px 14px",
+    borderBottom: "1px solid #0f1e35",
+    transition: "background 0.1s",
+    userSelect: "none",
+  },
+  cardIcon: {
+    flexShrink: 0,
+  },
+  cardInfo: {
+    flex: 1,
+    overflow: "hidden",
+    minWidth: 0,
+  },
+  cardName: {
+    fontSize: 14,
     fontWeight: 500,
-    transition: "background 0.15s",
-    border: "1px solid #1d4ed8",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  cardMeta: {
+    display: "flex",
+    gap: 10,
+    fontSize: 11,
+    color: "#475569",
+    marginTop: 2,
+  },
+  cardPath: {
+    fontSize: 10,
+    color: "#334155",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    marginTop: 2,
   },
 };

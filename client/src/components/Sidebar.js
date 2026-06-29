@@ -9,10 +9,9 @@ import {
 } from "lucide-react";
 
 export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
-  const [tree, setTree] = useState({}); // { path: { expanded, children } }
-  const [loading, setLoading] = useState({}); // { path: bool }
+  const [tree, setTree] = useState({});
+  const [loading, setLoading] = useState({});
 
-  // Auto-expand root folders initially
   useEffect(() => {
     if (rootFolders.length === 0) return;
     const initial = {};
@@ -32,7 +31,6 @@ export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
       setTree((prev) => ({
         ...prev,
         [folderPath]: { ...prev[folderPath], children: folders },
-        // Init child nodes
         ...Object.fromEntries(
           folders
             .filter((f) => !prev[f.path])
@@ -49,11 +47,19 @@ export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
     }
   }, []);
 
-  const toggle = useCallback(
-    async (folderPath) => {
+  // ── Toggle expand/collapse WITHOUT navigating ──────────────
+  const toggleExpand = useCallback(
+    async (folderPath, e) => {
+      // Stop the event from bubbling to the name click
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+
       const node = tree[folderPath];
       if (!node) return;
 
+      // Load children if not loaded yet
       if (!node.expanded && node.children === null) {
         await loadChildren(folderPath);
       }
@@ -65,9 +71,16 @@ export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
           expanded: !prev[folderPath].expanded,
         },
       }));
+    },
+    [tree, loadChildren],
+  );
+
+  // ── Navigate to folder (select it) ────────────────────────
+  const selectFolder = useCallback(
+    (folderPath) => {
       onSelectFolder(folderPath);
     },
-    [tree, loadChildren, onSelectFolder],
+    [onSelectFolder],
   );
 
   function renderNode(folder, depth = 0) {
@@ -79,35 +92,45 @@ export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
 
     return (
       <div key={folder.path}>
-        <button
+        <div
           style={{
-            ...styles.nodeBtn,
+            ...styles.nodeRow,
             paddingLeft: 10 + depth * 16,
             background: isSelected ? "#1e3a5f" : "transparent",
-            color: isSelected ? "#93c5fd" : "#cbd5e1",
           }}
-          onClick={() => toggle(folder.path)}
-          title={folder.path}
         >
-          {/* Expand arrow */}
-          <span style={styles.arrow}>
+          {/* ── Arrow button (expand/collapse only) ── */}
+          <button
+            style={styles.arrowBtn}
+            onClick={(e) => toggleExpand(folder.path, e)}
+            title={isExpanded ? "Collapse" : "Expand"}
+          >
             {isLoading ? (
-              <span style={{ ...styles.miniSpinner }} />
+              <span style={styles.miniSpinner} />
             ) : isExpanded ? (
-              <ChevronDown size={12} color="#64748b" />
+              <ChevronDown size={14} color="#64748b" />
             ) : (
-              <ChevronRight size={12} color="#64748b" />
+              <ChevronRight size={14} color="#64748b" />
             )}
-          </span>
+          </button>
 
-          {isExpanded ? (
-            <FolderOpen size={15} color="#f59e0b" style={{ flexShrink: 0 }} />
-          ) : (
-            <Folder size={15} color="#fbbf24" style={{ flexShrink: 0 }} />
-          )}
-
-          <span style={styles.nodeName}>{folder.name}</span>
-        </button>
+          {/* ── Folder name button (navigate) ── */}
+          <button
+            style={{
+              ...styles.nameBtn,
+              color: isSelected ? "#93c5fd" : "#cbd5e1",
+            }}
+            onClick={() => selectFolder(folder.path)}
+            title={folder.path}
+          >
+            {isExpanded ? (
+              <FolderOpen size={15} color="#f59e0b" style={{ flexShrink: 0 }} />
+            ) : (
+              <Folder size={15} color="#fbbf24" style={{ flexShrink: 0 }} />
+            )}
+            <span style={styles.nodeName}>{folder.name}</span>
+          </button>
+        </div>
 
         {/* Children */}
         {isExpanded && children.length > 0 && (
@@ -132,7 +155,6 @@ export default function Sidebar({ rootFolders, currentPath, onSelectFolder }) {
       <div style={styles.tree}>
         {rootFolders.map((rf) => (
           <div key={rf.path}>
-            {/* Root drive label */}
             <div style={styles.rootLabel}>
               <HardDrive size={13} color="#3b82f6" />
               <span>{rf.path}</span>
@@ -175,26 +197,44 @@ const styles = {
     letterSpacing: "0.5px",
     textTransform: "uppercase",
   },
-  nodeBtn: {
+  // ── Row: holds arrow + name side by side ──
+  nodeRow: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
-    width: "100%",
-    border: "none",
-    cursor: "pointer",
-    fontSize: 13,
-    padding: "5px 10px",
-    textAlign: "left",
-    borderRadius: 4,
+    gap: 0,
     margin: "1px 4px",
+    borderRadius: 4,
     transition: "background 0.1s",
   },
-  arrow: {
-    width: 14,
+  // ── Arrow button (expand only) ──
+  arrowBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    width: 24,
+    height: 28,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
     flexShrink: 0,
+    borderRadius: 4,
+    padding: 0,
+  },
+  // ── Folder name button (navigate) ──
+  nameBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 13,
+    padding: "5px 6px",
+    textAlign: "left",
+    borderRadius: 4,
+    minWidth: 0,
+    color: "#cbd5e1",
   },
   nodeName: {
     overflow: "hidden",
