@@ -3,10 +3,6 @@ const fs = require("fs");
 const path = require("path");
 const mime = require("mime-types");
 const cors = require("cors");
-const dotenv = require("dotenv");
-
-// Load environment variables
-dotenv.config();
 
 // ─── Load Config ────────────────────────────────────────────────────────────
 const config = JSON.parse(
@@ -33,8 +29,8 @@ app.use(express.static(path.join(__dirname, "client", "build")));
  */
 // single hardcoded user
 const user ={
-  username: process.env.USERNAME,
-  password: process.env.PASSWORD
+  username: "admin",
+  password: "admin123"
 }
 
 
