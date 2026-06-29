@@ -5,10 +5,9 @@ const mime = require("mime-types");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
-// Load environment variables
 dotenv.config();
 
-// ─── Load Config ────────────────────────────────────────────────────────────
+// ─── Load Config ──────────────────────────────────────────────
 const config = JSON.parse(
   fs.readFileSync(path.join(__dirname, "config.json"), "utf-8"),
 );
@@ -17,49 +16,31 @@ const PORT = config.port || 3001;
 
 const app = express();
 
-// ─── Middleware ──────────────────────────────────────────────────────────────
+// ─── Middleware ───────────────────────────────────────────────
 app.use(cors({ origin: `http://localhost:${config.clientPort || 3000}` }));
 app.use(express.json());
 
-// Serve React build in production
-app.use(express.static(path.join(__dirname, "client", "build")));
-
-// ─── Security Helpers ────────────────────────────────────────────────────────
-
-/**
- * Resolves and validates a user-supplied path.
- * Returns the absolute path only if it sits inside an allowed shared folder.
- * Returns null if the path is invalid or outside allowed roots.
- */
-// single hardcoded user
+// ─── Hardcoded user ──────────────────────────────────────────
 const user = {
   username: "admin",
   password: "admin123",
 };
 
+// ─── Security Helpers ────────────────────────────────────────
+
 function resolveSafePath(userPath) {
   if (!userPath || typeof userPath !== "string") return null;
-
-  // Normalize and resolve to absolute path
   const normalized = path.normalize(userPath);
-
-  // Must be absolute (starts with drive letter on Windows)
   if (!path.isAbsolute(normalized)) return null;
 
-  // Check if the resolved path starts with one of the allowed roots
   const allowed = SHARED_FOLDERS.some((root) => {
     const relative = path.relative(root, normalized);
-    // relative must not start with ".." and must not be an absolute path
     return !relative.startsWith("..") && !path.isAbsolute(relative);
   });
 
   return allowed ? normalized : null;
 }
 
-/**
- * Checks whether a filesystem entry should be hidden
- * (system files, hidden Windows folders, etc.)
- */
 function isHiddenOrSystem(name) {
   const blocked = [
     "System Volume Information",
@@ -76,12 +57,26 @@ function isHiddenOrSystem(name) {
   return name.startsWith(".") || blocked.includes(name);
 }
 
-// ─── API Routes ──────────────────────────────────────────────────────────────
+// ─── Config endpoint (exposes port to client) ────────────────
+app.get("/api/config", (req, res) => {
+  res.json({ port: PORT });
+});
 
-/**
- * GET /api/folders
- * Returns the list of configured shared root folders.
- */
+// ══════════════════════════════════════════════════════════════
+// ALL API ROUTES MUST BE DEFINED BEFORE THE CATCH-ALL
+// ══════════════════════════════════════════════════════════════
+
+// ─── Login ───────────────────────────────────────────────────
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username === user.username && password === user.password) {
+    res.json({ success: true, message: "Login successful." });
+  } else {
+    res.status(401).json({ success: false, message: "Invalid credentials." });
+  }
+});
+
+// ─── List root folders ───────────────────────────────────────
 app.get("/api/folders", (req, res) => {
   const result = SHARED_FOLDERS.map((folder) => ({
     name: path.basename(folder),
@@ -91,18 +86,13 @@ app.get("/api/folders", (req, res) => {
   res.json(result);
 });
 
-/**
- * GET /api/list?path=D:\Projects\ClientA
- * Lists the contents of a given directory.
- */
+// ─── List directory contents ─────────────────────────────────
 app.get("/api/list", (req, res) => {
   const targetPath = resolveSafePath(req.query.path);
-
   if (!targetPath) {
     return res.status(400).json({ error: "Invalid or unauthorized path." });
   }
 
-  // Make sure it's a directory
   let stat;
   try {
     stat = fs.statSync(targetPath);
@@ -135,9 +125,7 @@ app.get("/api/list", (req, res) => {
         const s = fs.statSync(fullPath);
         size = isFolder ? null : s.size;
         modified = s.mtime.toISOString();
-      } catch {
-        // Entry may be inaccessible (permissions), skip metadata
-      }
+      } catch {}
 
       return {
         name: entry.name,
@@ -148,7 +136,6 @@ app.get("/api/list", (req, res) => {
         extension: isFolder ? null : path.extname(entry.name).toLowerCase(),
       };
     })
-    // Sort: folders first, then files, both alphabetically
     .sort((a, b) => {
       if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -157,10 +144,100 @@ app.get("/api/list", (req, res) => {
   res.json(result);
 });
 
-/**
- * GET /api/download?path=D:\Projects\Report.pdf
- * Streams a file from disk to the browser.
- */
+// ─── View file (inline) ─────────────────────────────────────
+app.get("/api/view", (req, res) => {
+  console.log("[VIEW] Request received:", req.query.path);
+
+  const targetPath = resolveSafePath(req.query.path);
+
+  if (!targetPath) {
+    console.log("[VIEW] Invalid path");
+    return res.status(400).json({ error: "Invalid or unauthorized path." });
+  }
+
+  let stat;
+  try {
+    stat = fs.statSync(targetPath);
+  } catch {
+    console.log("[VIEW] File not found:", targetPath);
+    return res.status(404).json({ error: "File not found." });
+  }
+
+  if (!stat.isFile()) {
+    return res.status(400).json({ error: "Path is not a file." });
+  }
+
+  const fileName = path.basename(targetPath);
+  const mimeType = mime.lookup(targetPath) || "application/octet-stream";
+  const fileSize = stat.size;
+
+  console.log(
+    "[VIEW] Serving:",
+    fileName,
+    "Type:",
+    mimeType,
+    "Size:",
+    fileSize,
+  );
+
+  // ── Range request support (for video/audio seeking) ────────
+  const rangeHeader = req.headers.range;
+
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunkSize,
+      "Content-Type": mimeType,
+      "X-Content-Type-Options": "nosniff",
+    });
+
+    const stream = fs.createReadStream(targetPath, { start, end });
+    stream.on("error", (err) => {
+      console.error("[VIEW] Stream error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to stream file." });
+      }
+    });
+    stream.pipe(res);
+  } else {
+    // ── Normal full-file response ────────────────────────────
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Length", fileSize);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Accept-Ranges", "bytes");
+
+    // Don't set Content-Disposition to attachment — we want inline viewing
+    // For PDFs specifically, force inline
+    if (mimeType === "application/pdf") {
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${encodeURIComponent(fileName)}"`,
+      );
+    }
+
+    // Cache images for 1 hour
+    if (mimeType.startsWith("image/")) {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    }
+
+    const stream = fs.createReadStream(targetPath);
+    stream.on("error", (err) => {
+      console.error("[VIEW] Stream error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to stream file." });
+      }
+    });
+    stream.pipe(res);
+  }
+});
+
+// ─── Download file (attachment) ──────────────────────────────
 app.get("/api/download", (req, res) => {
   const targetPath = resolveSafePath(req.query.path);
 
@@ -200,10 +277,7 @@ app.get("/api/download", (req, res) => {
   stream.pipe(res);
 });
 
-/**
- * GET /api/search?path=D:\Projects&query=report
- * Searches for files/folders by name within a directory (non-recursive by default).
- */
+// ─── Search ──────────────────────────────────────────────────
 app.get("/api/search", (req, res) => {
   const targetPath = resolveSafePath(req.query.path);
   const query = (req.query.query || "").toLowerCase().trim();
@@ -219,7 +293,7 @@ app.get("/api/search", (req, res) => {
   const results = [];
 
   function searchDir(dirPath, depth = 0) {
-    if (depth > 4) return; // Limit recursion depth for performance
+    if (depth > 4) return;
 
     let entries;
     try {
@@ -260,10 +334,17 @@ app.get("/api/search", (req, res) => {
   }
 
   searchDir(targetPath);
-  res.json(results.slice(0, 200)); // Cap results at 200
+  res.json(results.slice(0, 200));
 });
 
-// ─── Catch-All: Serve React ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// STATIC FILES + CATCH-ALL — MUST BE LAST!
+// ══════════════════════════════════════════════════════════════
+
+// Serve React build
+app.use(express.static(path.join(__dirname, "client", "build")));
+
+// Catch-all: serve React index.html (MUST be after all /api routes)
 app.get("*", (req, res) => {
   const indexPath = path.join(__dirname, "client", "build", "index.html");
   if (fs.existsSync(indexPath)) {
@@ -277,21 +358,17 @@ app.get("*", (req, res) => {
   }
 });
 
-// login route
-app.post("/api/login", (req, res) => {
-  const { username, password } = req.body;
-
-  if (username === user.username && password === user.password) {
-    res.json({ success: true, message: "Login successful." });
-  } else {
-    res.status(401).json({ success: false, message: "Invalid credentials." });
-  }
-});
-
-// ─── Start Server ────────────────────────────────────────────────────────────
+// ─── Start Server ────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ File Browser Backend running at http://localhost:${PORT}`);
   console.log(`📁 Shared folders:`);
   SHARED_FOLDERS.forEach((f) => console.log(`   • ${f}`));
+  console.log(`\n📌 API Routes:`);
+  console.log(`   • GET  /api/folders`);
+  console.log(`   • GET  /api/list?path=...`);
+  console.log(`   • GET  /api/view?path=...`);
+  console.log(`   • GET  /api/download?path=...`);
+  console.log(`   • GET  /api/search?path=...&query=...`);
+  console.log(`   • POST /api/login`);
   console.log(`\nOpen http://localhost:3000 in your browser.\n`);
 });
