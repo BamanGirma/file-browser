@@ -3,9 +3,6 @@ const fs = require("fs");
 const path = require("path");
 const mime = require("mime-types");
 const cors = require("cors");
-const dotenv = require("dotenv");
-
-dotenv.config();
 
 // ─── Load Config ──────────────────────────────────────────────
 const config = JSON.parse(
