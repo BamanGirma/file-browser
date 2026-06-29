@@ -1,4 +1,4 @@
-/* ── Reset & Base ─────────────────────────────────────────── */
+/* ── Reset & Base ─────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -23,7 +23,7 @@ body {
   flex-direction: column;
 }
 
-/* ── Scrollbars ───────────────────────────────────────────── */
+/* ── Scrollbars ───────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -39,7 +39,7 @@ body {
   background: #475569;
 }
 
-/* ── Animations ───────────────────────────────────────────── */
+/* ── Animations ───────────────────────────────────────── */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -67,4 +67,23 @@ body {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   display: inline-block;
+}
+
+/* ── Mobile touch tap highlight remove ────────────────── */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* ── Responsive tweaks ────────────────────────────────── */
+@media (max-width: 767px) {
+  body {
+    overflow: hidden;
+  }
+
+  /* Make nav buttons bigger on touch */
+  button {
+    min-height: 36px;
+  }
 }

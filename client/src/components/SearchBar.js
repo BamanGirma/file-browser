@@ -6,7 +6,7 @@ export default function SearchBar({ value, onChange, placeholder }) {
 
   return (
     <div style={styles.wrapper}>
-      <Search size={14} color="#475569" style={styles.icon} />
+      <Search size={14} color="#475569" style={{ flexShrink: 0 }} />
       <input
         ref={inputRef}
         type="text"
@@ -42,16 +42,18 @@ const styles = {
     padding: "0 10px",
     gap: 8,
     height: 34,
-    width: 240,
+    width: "clamp(120px, 30vw, 240px)",
+    flexShrink: 1,
+    minWidth: 80,
   },
-  icon: { flexShrink: 0 },
   input: {
     background: "none",
     border: "none",
     outline: "none",
     color: "#e2e8f0",
-    fontSize: 13,
+    fontSize: 14,
     flex: 1,
+    minWidth: 0,
     width: "100%",
   },
   clear: {

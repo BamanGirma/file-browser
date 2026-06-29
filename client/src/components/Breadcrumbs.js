@@ -4,9 +4,7 @@ import { ChevronRight, Home } from "lucide-react";
 export default function Breadcrumbs({ currentPath, rootFolders, onNavigate }) {
   if (!currentPath) return <div />;
 
-  // Find which root folder this path is under
   const root = rootFolders.find((r) => currentPath.startsWith(r.path));
-
   if (!root)
     return (
       <div style={styles.crumbs}>
@@ -14,7 +12,6 @@ export default function Breadcrumbs({ currentPath, rootFolders, onNavigate }) {
       </div>
     );
 
-  // Build crumbs from root down to currentPath
   const relative = currentPath.slice(root.path.length).replace(/^[/\\]+/, "");
   const parts = relative ? relative.split(/[/\\]/).filter(Boolean) : [];
 
@@ -40,6 +37,8 @@ export default function Breadcrumbs({ currentPath, rootFolders, onNavigate }) {
                 color: isLast ? "#e2e8f0" : "#64748b",
                 fontWeight: isLast ? 600 : 400,
                 cursor: isLast ? "default" : "pointer",
+                // Highlight on hover via inline style won't work —
+                // we rely on opacity change handled by disabled
               }}
               onClick={() => !isLast && onNavigate(crumb.path)}
               title={crumb.path}
@@ -58,19 +57,20 @@ const styles = {
   crumbs: {
     display: "flex",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
     overflow: "hidden",
+    width: "100%",
   },
   crumb: {
     background: "none",
     border: "none",
-    fontSize: 13,
-    padding: "2px 4px",
+    fontSize: 12,
+    padding: "2px 3px",
     borderRadius: 3,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    maxWidth: 160,
+    maxWidth: 140,
     transition: "color 0.1s",
   },
 };
